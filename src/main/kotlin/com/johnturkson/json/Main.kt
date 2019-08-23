@@ -1,7 +1,8 @@
 package com.johnturkson.json
 
+
 fun main() {
-    val test =
+    val testString =
         """{
                 "fs": "CLT",
                 "city": "Charlotte",
@@ -14,12 +15,10 @@ fun main() {
                         "timezone": "EDT",
                         "test": {
                             "testKey": "testK1",
-                            "testKey2A": [
-                                {
-                                    "nested1": "value1",
-                                    "nested2": "value2"
-                                }
-                            ],
+                            "testKey2A" : [{
+                                "nested1": "1",
+                                "nested2": "2"
+                            }],
                             "testKey3": "testK3"
                         }
                     },
@@ -34,39 +33,41 @@ fun main() {
                 "date": "2019-08-20T16:15:00.000"
             }""".trimIndent()
     
-    val schema = JsonObject().apply {
-        addProperty(JsonPrimitive("fs", Regex("[A-Z]+"), Type.STRING))
-        addProperty(JsonPrimitive("city", Regex(".+"), Type.STRING))
-        addProperty(JsonPrimitive("state", Regex("[A-Z]+"), Type.STRING))
-        addProperty(JsonPrimitive("country", Regex("[A-Z]+"), Type.STRING))
-        addProperty(JsonObject("times").apply {
-            addProperty(JsonObject("scheduled").apply {
-                addProperty(JsonPrimitive("time", Regex("\\d\\d?:\\d\\d"), Type.STRING))
-                addProperty(JsonPrimitive("ampm", Regex("AM|PM"), Type.STRING))
-                addProperty(JsonPrimitive("timezone", Regex("[A-Z]+"), Type.STRING))
-                addProperty(JsonObject("test").apply {
-                    addProperty(JsonPrimitive("testKey", Regex(".+"), Type.STRING))
-                    addProperty(JsonArray("testKey2A").apply {
-                        assignElement(JsonObject().apply {
-                            addProperty(JsonPrimitive("nested1", Regex(".+"), Type.STRING))
-                            addProperty(JsonPrimitive("nested2", Regex(".+"), Type.STRING))
+    val schema = JsonObject("root").apply {
+        add(JsonPrimitive("fs", Regex("[A-Z]+"), Type.STRING))
+        add(JsonPrimitive("city", Regex(".+"), Type.STRING))
+        add(JsonPrimitive("state", Regex("[A-Z]+"), Type.STRING))
+        add(JsonPrimitive("country", Regex("[A-Z]+"), Type.STRING))
+        add(JsonObject("times").apply {
+            add(JsonObject("scheduled").apply {
+                add(JsonPrimitive("time", Regex("\\d\\d?:\\d\\d"), Type.STRING))
+                add(JsonPrimitive("ampm", Regex("AM|PM"), Type.STRING))
+                add(JsonPrimitive("timezone", Regex("[A-Z]+"), Type.STRING))
+                add(JsonObject("test").apply {
+                    add(JsonPrimitive("testKey", Regex(".+"), Type.STRING))
+                    add(JsonArray("testKey2A").apply {
+                        assignElement(JsonObject("root").apply {
+                            add(JsonPrimitive("nested1", Regex(".+"), Type.STRING))
+                            add(JsonPrimitive("nested2", Regex(".+"), Type.STRING))
                         })
                     })
-                    addProperty(JsonPrimitive("testKey3", Regex(".+"), Type.STRING))
+                    add(JsonPrimitive("testKey3", Regex(".+"), Type.STRING))
                 })
             })
-            addProperty(JsonObject("estimated").apply {
-                addProperty(JsonPrimitive("title", Regex("Estimated|Actual"), Type.STRING))
-                addProperty(JsonPrimitive("time", Regex("\\d\\d?:\\d\\d"), Type.STRING))
-                addProperty(JsonPrimitive("ampm", Regex("AM|PM"), Type.STRING))
-                addProperty(JsonPrimitive("runway", Regex("true|false"), Type.BOOLEAN))
-                addProperty(JsonPrimitive("timezone", Regex("[A-Z]+"), Type.STRING))
+            add(JsonObject("estimated").apply {
+                add(JsonPrimitive("title", Regex("Estimated|Actual"), Type.STRING))
+                add(JsonPrimitive("time", Regex("\\d\\d?:\\d\\d"), Type.STRING))
+                add(JsonPrimitive("ampm", Regex("AM|PM"), Type.STRING))
+                add(JsonPrimitive("runway", Regex("true|false"), Type.BOOLEAN))
+                add(JsonPrimitive("timezone", Regex("[A-Z]+"), Type.STRING))
             })
         })
-        addProperty(JsonPrimitive("date", Regex(".+"), Type.STRING))
+        add(JsonPrimitive("date", Regex(".+"), Type.STRING))
     }
     
     println(schema.generateRegex())
+    println(schema.generateRegex().length)
+    
     // println(schema.fullyQualifiedKey())
     // println(schema.findGroup("fs"))
     // println(schema.findGroup("city"))
@@ -121,29 +122,73 @@ fun main() {
     // }
     
     
-    val test1 = JsonObject().apply {
-        addProperty(JsonObject("nested").apply {
-            addProperty(JsonPrimitive("nested1", Regex(".+"), Type.STRING))
-            addProperty(JsonPrimitive("nested2", Regex(".+"), Type.STRING))
-        })
-    }
+    // val test1 = JsonObject("").apply {
+    //     add(JsonObject("nested").apply {
+    //         add(JsonPrimitive("nested1", Regex(".+"), Type.STRING))
+    //         add(JsonPrimitive("nested2", Regex(".+"), Type.STRING))
+    //     })
+    // }
+    //
+    // val test2 = JsonObject("root").apply {
+    //     add(JsonObject("test"))
+    //     add(JsonPrimitive("nested1", Regex(".+"), Type.STRING))
+    //     add(JsonPrimitive("nested2", Regex(".+"), Type.STRING))
+    // }
+    //
+    // val test3 = JsonObject("root").apply {
+    //     add(JsonObject("a", nullable = true, optional = true))
+    //     add(JsonObject("b", nullable = true, optional = false))
+    //     add(JsonObject("c", nullable = false, optional = true))
+    //     add(JsonObject("d", nullable = false, optional = false))
+    //     add(JsonPrimitive("nested1", Regex(".+"), Type.STRING))
+    //     add(JsonPrimitive("nested2", Regex(".+"), Type.STRING))
+    //     add(JsonPrimitive("blank", Regex(".+"), Type.STRING))
+    // }
+    //
+    // val test4 = JsonArray("").apply {
+    //     assignElement(JsonObject("k", nullable = true, optional = false).apply {
+    //         add(JsonPrimitive("k1", Regex("\\d+"), Type.INTEGER))
+    //     })
+    // }
     
-    val test2 = JsonObject("root").apply {
-        addProperty(JsonObject("test"))
-        addProperty(JsonPrimitive("nested1", Regex(".+"), Type.STRING))
-        addProperty(JsonPrimitive("nested2", Regex(".+"), Type.STRING))
-    }
+    // val test5 = 
+    //     JsonObject("").apply {
+    //     add(
+    //         JsonArray("array", nullable = false).apply {
+    //         assignElement(JsonArray("array2", nullable = true).apply {
+    //             // assignElement(JsonArray("array3", nullable = false).apply {
+    //                 assignElement(JsonPrimitive("k1", Regex("\\d+"), Type.INTEGER))
+    //             // })
+    //         })
+    //     }
+    //     )
+    // }
     
-    println(test1.findGroup("nested"))
-    println(test1.findGroup("nested.nested1"))
-    println(test1.findGroup("nested.nested2"))
-    println(test1.findGroup("doesnotexist"))
-    println(test1.findGroup("nested.doesnotexist"))
-
-    println(test2.findGroup("root"))
-    println(test2.findGroup("root.test"))
-    println(test2.findGroup("root.nested1"))
-    println(test2.findGroup("root.nested2"))
-    println(test2.findGroup("doesnotexist"))
-    println(test2.findGroup("root.doesnotexist"))
+    // println(test1.generateRegex())
+    // println(test2.generateRegex())
+    // println(test3.generateRegex())
+    // println(test4.generateRegex())
+    // println(test5.generateRegex())
+    // println()
+    // println(test1.findGroupNumber("nested"))
+    // println(test1.findGroupNumber("nested.nested1"))
+    // println(test1.findGroupNumber("nested.nested2"))
+    // println(test1.findGroupNumber("doesnotexist"))
+    // println(test1.findGroupNumber("nested.doesnotexist"))
+    // println()
+    // println(test2.findGroupNumber("root"))
+    // println(test2.findGroupNumber("root.test"))
+    // println(test2.findGroupNumber("root.nested1"))
+    // println(test2.findGroupNumber("root.nested2"))
+    // println(test2.findGroupNumber("doesnotexist"))
+    // println(test2.findGroupNumber("root.doesnotexist"))
+    // println()
+    // println(test3.findGroupNumber("root"))
+    // println(test3.findGroupNumber("root.nested1"))
+    // println(test3.findGroupNumber("root..nested1"))
+    // println()
+    // println(test5.findGroupNumber(""))
+    // println(test5.findGroupNumber("array"))
+    // println(test5.findGroupNumber("array.array2"))
+    // println(test5.findGroupNumber("root.array"))
 }
