@@ -8,6 +8,8 @@ const val OPENING_CAPTURE_GROUP_BRACKET = "("
 const val CLOSING_CAPTURE_GROUP_BRACKET = ")"
 const val OPENING_NON_CAPTURE_GROUP_BRACKET = "(?:"
 const val CLOSING_NON_CAPTURE_GROUP_BRACKET = ")"
+const val OPENING_NAMED_CAPTURE_GROUP = "?<"
+const val CLOSING_NAMED_CAPTURE_GROUP = ">"
 const val ARBITRARY_WHITESPACE = "\\s*"
 const val DOUBLE_QUOTE = "\""
 const val KEY_VALUE_SEPARATOR = "$ARBITRARY_WHITESPACE:$ARBITRARY_WHITESPACE"
@@ -27,39 +29,44 @@ interface JsonElement {
     val nullable: Boolean
     val optional: Boolean
     var parent: JsonElement?
-
+    
     fun generateRegex(): String
-
+    
     fun generateUnquotedRegex(value: String): String {
         return value
     }
-
+    
     fun generateUncapturedRegex(value: String): String {
         return OPENING_NON_CAPTURE_GROUP_BRACKET + value + CLOSING_NON_CAPTURE_GROUP_BRACKET
     }
-
+    
     fun generateCapturedRegex(value: String): String {
-        return OPENING_CAPTURE_GROUP_BRACKET + value + CLOSING_CAPTURE_GROUP_BRACKET
+        val fullyQualifiedKey = fullyQualifiedKey()
+        return when {
+            fullyQualifiedKey != null && !fullyQualifiedKey.isBlank() -> "$OPENING_CAPTURE_GROUP_BRACKET$OPENING_NAMED_CAPTURE_GROUP${fullyQualifiedKey.replace(".", "_")}$CLOSING_NAMED_CAPTURE_GROUP$value$CLOSING_CAPTURE_GROUP_BRACKET"
+            else -> "$OPENING_CAPTURE_GROUP_BRACKET$value$CLOSING_CAPTURE_GROUP_BRACKET"
+        }
     }
-
+    
+    
     fun generateQuotedRegex(value: String): String {
         return DOUBLE_QUOTE + OPENING_NON_CAPTURE_GROUP_BRACKET + value + CLOSING_NON_CAPTURE_GROUP_BRACKET + DOUBLE_QUOTE
     }
-
+    
     fun generateNullableRegex(value: String): String {
         return OPENING_NON_CAPTURE_GROUP_BRACKET + value + OR + NULL + CLOSING_NON_CAPTURE_GROUP_BRACKET
     }
-
+    
     fun generateOptionalRegex(value: String): String {
         return (OPENING_NON_CAPTURE_GROUP_BRACKET + value + CLOSING_NON_CAPTURE_GROUP_BRACKET) + OPTIONAL
     }
-
+    
     fun findGroup(name: String): Int?
-
+    
     fun findGroup(name: String, previousGroup: Int): TraversalResult
-
+    
     fun findGroup(name: String, key: String, currentGroup: Int): TraversalResult
-
+    
     fun isWithinArray(): Boolean {
         var parentCopy = this.parent
         var isInArray = false
@@ -72,7 +79,7 @@ interface JsonElement {
         }
         return isInArray
     }
-
+    
     fun fullyQualifiedKey(): String? {
         val names = mutableListOf<String>()
         var parentCopy: JsonElement? = this
@@ -96,14 +103,15 @@ data class JsonObject(
     override var parent: JsonElement? = null
 ) : JsonElement {
     override val type: Type = Type.OBJECT
-
-    // TODO finding group indices: traverse through entire tree while keeping track of current position, and if the fully qualified name matches the key, then return the value
-
-    fun addProperty(key: String, value: JsonElement) {
-        properties[key] = value
-        value.parent = this
+    
+    fun addProperty(property: JsonElement) {
+        if (property.key == null) {
+            throw IllegalArgumentException("Non-root properties must have a non-null key")
+        }
+        properties[property.key!!] = property
+        property.parent = this
     }
-
+    
     override fun findGroup(name: String): Int? {
         if (name == fullyQualifiedKey()) {
             return 1
@@ -114,7 +122,7 @@ data class JsonObject(
             else -> null
         }
     }
-
+    
     override fun findGroup(name: String, previousGroup: Int): TraversalResult {
         var currentGroup = previousGroup
         for ((key, value) in properties) {
@@ -127,48 +135,45 @@ data class JsonObject(
         }
         return TraversalResult(currentGroup, false)
     }
-
+    
     override fun findGroup(name: String, key: String, currentGroup: Int): TraversalResult {
         return when (name) {
             fullyQualifiedKey() -> TraversalResult(currentGroup, true)
             else -> findGroup(name, currentGroup)
         }
     }
-
+    
     override fun generateRegex(): String {
         val builder = StringBuilder()
-        when {
-            isWithinArray() -> builder.append(OPENING_NON_CAPTURE_GROUP_BRACKET)
-            else -> builder.append(OPENING_CAPTURE_GROUP_BRACKET)
-        }
-
+        
         builder.append(OPENING_OBJECT_BRACKET)
         builder.append(ARBITRARY_WHITESPACE)
         builder.append(
             properties.entries.joinToString(
                 separator = DELIMITER
             ) {
+                
                 "$DOUBLE_QUOTE${it.key}$DOUBLE_QUOTE$KEY_VALUE_SEPARATOR${it.value.generateRegex()}"
             }
         )
         builder.append(ARBITRARY_WHITESPACE)
         builder.append(CLOSING_OBJECT_BRACKET)
-
-        when {
-            isWithinArray() -> builder.append(CLOSING_NON_CAPTURE_GROUP_BRACKET)
-            else -> builder.append(CLOSING_CAPTURE_GROUP_BRACKET)
-        }
-
+        
         var regex = builder.toString()
-
-        if (optional) {
-            regex = generateOptionalRegex(regex)
-        }
-
+        
         if (nullable) {
             regex = generateNullableRegex(regex)
         }
-
+        
+        if (optional) {
+            regex = generateOptionalRegex(regex)
+        }
+    
+        regex = when {
+            isWithinArray() -> generateUncapturedRegex(regex)
+            else -> generateCapturedRegex(regex)
+        } 
+        
         return regex
     }
 }
@@ -181,14 +186,14 @@ data class JsonArray(
     override var parent: JsonElement? = null
 ) : JsonElement {
     override val type: Type = Type.ARRAY
-
+    
     init {
         if (element?.optional == true) {
             throw IllegalArgumentException("Element directly inside array cannot be optional")
         }
         element?.parent = this
     }
-
+    
     fun assignElement(element: JsonElement?) {
         if (element?.optional == true) {
             throw IllegalArgumentException("Element directly inside array cannot be optional")
@@ -196,29 +201,29 @@ data class JsonArray(
         this.element = element
         element?.parent = this
     }
-
+    
     override fun findGroup(name: String): Int? {
         return null
     }
-
+    
     override fun findGroup(name: String, previousGroup: Int): TraversalResult {
         return TraversalResult(previousGroup, false)
     }
-
+    
     override fun findGroup(name: String, key: String, currentGroup: Int): TraversalResult {
         return when (name) {
             fullyQualifiedKey() -> TraversalResult(currentGroup, true)
             else -> TraversalResult(currentGroup, false)
         }
     }
-
+    
     override fun generateRegex(): String {
         val builder = StringBuilder()
         builder.append(OPENING_ARRAY_BRACKET)
         builder.append(ARBITRARY_WHITESPACE)
         builder.append(OPENING_CAPTURE_GROUP_BRACKET)
         builder.append(ARBITRARY_WHITESPACE)
-
+        
         val regex = element?.generateRegex() ?: ""
         if (element != null) {
             builder.append(OPENING_NON_CAPTURE_GROUP_BRACKET)
@@ -227,7 +232,7 @@ data class JsonArray(
             builder.append(OPENING_NON_CAPTURE_GROUP_BRACKET)
             builder.append(regex)
             builder.append(OPENING_NON_CAPTURE_GROUP_BRACKET)
-            builder.append(ARBITRARY_WHITESPACE + DELIMITER + ARBITRARY_WHITESPACE)
+            builder.append(DELIMITER)
             builder.append(regex)
             builder.append(CLOSING_NON_CAPTURE_GROUP_BRACKET)
             builder.append(ZERO_OR_MORE)
@@ -236,7 +241,7 @@ data class JsonArray(
         } else {
             builder.append(EMPTY)
         }
-
+        
         builder.append(ARBITRARY_WHITESPACE)
         builder.append(CLOSING_CAPTURE_GROUP_BRACKET)
         builder.append(ARBITRARY_WHITESPACE)
@@ -253,37 +258,42 @@ data class JsonPrimitive(
     override val optional: Boolean = false,
     override var parent: JsonElement? = null
 ) : JsonElement {
-
+    
     override fun findGroup(name: String): Int? {
         return null
     }
-
+    
     override fun findGroup(name: String, previousGroup: Int): TraversalResult {
         return TraversalResult(previousGroup, false)
     }
-
+    
     override fun findGroup(name: String, key: String, currentGroup: Int): TraversalResult {
         return when (name) {
             fullyQualifiedKey() -> TraversalResult(currentGroup, true)
             else -> TraversalResult(currentGroup, false)
         }
     }
-
+    
     override fun generateRegex(): String {
         var regex = "$value"
+        
         if (type == Type.STRING) {
             regex = generateQuotedRegex(regex)
         }
+        
         if (nullable) {
             regex = generateNullableRegex(regex)
         }
-
-        if (isWithinArray()) {
-            regex = generateUncapturedRegex(regex)
-        } else {
-            regex = generateCapturedRegex(regex)
+    
+        regex = when {
+            isWithinArray() -> generateUncapturedRegex(regex)
+            else -> generateCapturedRegex(regex)
         }
-
+    
+        if (key != null && !key.isBlank()) {
+            regex += (generateQuotedRegex(key) + KEY_VALUE_SEPARATOR)
+        }
+        
         return regex
     }
 }
